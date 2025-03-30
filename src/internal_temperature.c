@@ -53,6 +53,8 @@ void internal_temperature_task(void *param)
     report_attr_cmd.zcl_basic_cmd.src_endpoint = ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID;
     esp_zb_zcl_report_attr_cmd_req(&report_attr_cmd);
     esp_zb_lock_release();
+
+    vTaskDelay(3000 / portTICK_PERIOD_MS);
   }
 }
 
