@@ -22,12 +22,14 @@ void internal_temperature_task(void *param)
   while (true)
   {
     int16_t value = (int16_t)(get_internal_temperature() * 100);
+    esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
     int16_t current_value = *(int16_t *)(esp_zb_zcl_get_attribute(
       ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID,
       ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,
       ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
       ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID
     )->data_p);
+    esp_zb_lock_release();
 
     if (current_value / 100 == value / 100)
     {

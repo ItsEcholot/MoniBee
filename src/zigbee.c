@@ -6,6 +6,7 @@
 
 #include "zigbee.h"
 #include "internal_temperature.h"
+#include "led.h"
 
 #define TAG "zigbee"
 
@@ -34,6 +35,8 @@ void init_zigbee(void)
       },
   };
   ESP_ERROR_CHECK(esp_zb_platform_config(&config));
+
+  esp_zb_sleep_enable(true);
 
   esp_zb_cfg_t zb_nwk_cfg = {
       .install_code_policy = false,
@@ -78,7 +81,7 @@ void setup_devices(void)
   temp_sensor_cfg.temp_meas_cfg.max_value = 8000;
   ep_config = (esp_zb_endpoint_config_t){
       .app_device_id = ESP_ZB_HA_TEMPERATURE_SENSOR_DEVICE_ID,
-      .app_device_version = 0,
+      .app_device_version = 1,
       .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
       .endpoint = ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID,
   };
@@ -169,6 +172,11 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
       ESP_LOGI(TAG, "Network steering was not successful (status: %s)", esp_err_to_name(err_status));
       esp_zb_scheduler_alarm((esp_zb_callback_t)bdb_start_top_level_commissioning_cb, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
     }
+    break;
+  case ESP_ZB_COMMON_SIGNAL_CAN_SLEEP:
+    set_led_percent(0);
+    esp_zb_sleep_now();
+    set_led_percent(10);
     break;
   default:
     ESP_LOGI(TAG, "ZDO signal: %s (0x%x), status: %s", esp_zb_zdo_signal_to_string(sig_type), sig_type,
