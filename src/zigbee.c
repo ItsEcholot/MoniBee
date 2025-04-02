@@ -1,50 +1,27 @@
-#include "nvs_flash.h"
 #include "esp_check.h"
 #include "esp_mac.h"
 #include "esp_zigbee_core.h"
 #include "ha/esp_zigbee_ha_standard.h"
 
+#include "zcl_utility.h"
 #include "zigbee.h"
 #include "internal_temperature.h"
-#include "led.h"
 
 #define TAG "zigbee"
 
-static TaskHandle_t zigbee_task_handle = NULL;
+static TaskHandle_t temperature_task_handle = NULL;
 
 void zigbee_task(void *param)
 {
   ESP_LOGI(TAG, "Starting task");
 
-  init_zigbee();
-
-  esp_zb_stack_main_loop();
-  vTaskDelete(NULL);
-}
-
-void init_zigbee(void)
-{
-  ESP_ERROR_CHECK(nvs_flash_init());
-
-  esp_zb_platform_config_t config = {
-      .radio_config = {
-          .radio_mode = ZB_RADIO_MODE_NATIVE,
-      },
-      .host_config = {
-          .host_connection_mode = ZB_HOST_CONNECTION_MODE_NONE,
-      },
-  };
-  ESP_ERROR_CHECK(esp_zb_platform_config(&config));
-
-  esp_zb_sleep_enable(true);
-
   esp_zb_cfg_t zb_nwk_cfg = {
-      .install_code_policy = false,
+      .install_code_policy = 0,
 #ifndef ZIGBEE_ROUTER_MODE
       .esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,
       .nwk_cfg.zed_cfg = {
           .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
-          .keep_alive = 3000,
+          .keep_alive = 300,
       }
 #else
       .esp_zb_role = ESP_ZB_DEVICE_TYPE_ROUTER,
@@ -53,8 +30,11 @@ void init_zigbee(void)
       },
 #endif
   };
+
+  esp_zb_sleep_enable(true);
   esp_zb_init(&zb_nwk_cfg);
   esp_zb_set_tx_power(ZIGBEE_TX_POWER);
+
   setup_devices();
 
 #ifdef ZIGBEE_ROUTER_MODE
@@ -63,6 +43,7 @@ void init_zigbee(void)
 #endif
   ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
   ESP_ERROR_CHECK(esp_zb_start(false));
+  esp_zb_stack_main_loop();
 }
 
 void setup_devices(void)
@@ -91,23 +72,6 @@ void setup_devices(void)
   esp_zb_device_register(ep_list);
 }
 
-esp_err_t esp_zcl_utility_add_ep_basic_manufacturer_info(esp_zb_ep_list_t *ep_list, uint8_t endpoint_id, zcl_basic_manufacturer_info_t *info)
-{
-  esp_err_t ret = ESP_OK;
-  esp_zb_cluster_list_t *cluster_list = NULL;
-  esp_zb_attribute_list_t *basic_cluster = NULL;
-
-  cluster_list = esp_zb_ep_list_get_ep(ep_list, endpoint_id);
-  ESP_RETURN_ON_FALSE(cluster_list, ESP_ERR_INVALID_ARG, TAG, "Failed to find endpoint id: %d in list: %p", endpoint_id, ep_list);
-  basic_cluster = esp_zb_cluster_list_get_cluster(cluster_list, ESP_ZB_ZCL_CLUSTER_ID_BASIC, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
-  ESP_RETURN_ON_FALSE(basic_cluster, ESP_ERR_INVALID_ARG, TAG, "Failed to find basic cluster in endpoint: %d", endpoint_id);
-  ESP_RETURN_ON_FALSE((info && info->manufacturer_name), ESP_ERR_INVALID_ARG, TAG, "Invalid manufacturer name");
-  ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, info->manufacturer_name));
-  ESP_RETURN_ON_FALSE((info && info->model_identifier), ESP_ERR_INVALID_ARG, TAG, "Invalid model identifier");
-  ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, info->model_identifier));
-  return ret;
-}
-
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
 {
   ESP_RETURN_ON_FALSE(esp_zb_bdb_start_top_level_commissioning(mode_mask) == ESP_OK, , TAG, "Failed to start Zigbee commissioning");
@@ -130,8 +94,8 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
     {
       ESP_LOGI(TAG, "Device started up in%s factory-reset mode", esp_zb_bdb_is_factory_new() ? "" : " non");
 
-      if (!zigbee_task_handle)
-        xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, &zigbee_task_handle);
+      // if (!temperature_task_handle)
+      // xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, NULL);
 
       if (esp_zb_bdb_is_factory_new())
       {
@@ -174,9 +138,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
     }
     break;
   case ESP_ZB_COMMON_SIGNAL_CAN_SLEEP:
-    set_led_percent(0);
     esp_zb_sleep_now();
-    set_led_percent(10);
     break;
   default:
     ESP_LOGI(TAG, "ZDO signal: %s (0x%x), status: %s", esp_zb_zdo_signal_to_string(sig_type), sig_type,
