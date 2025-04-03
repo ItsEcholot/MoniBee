@@ -9,41 +9,40 @@
 
 #define TAG "internal_temperature"
 
-static temperature_sensor_handle_t temp_handle = NULL;
-static temperature_sensor_config_t temp_config = {
-    .range_min = -10,
-    .range_max = 80,
-    .flags = {
-      .allow_pd = true,
-    },
+const temperature_sensor_config_t temp_config = {
+  .range_min = 18,
+  .range_max = 45,
+  .flags = {
+    .allow_pd = true,
+  },
 };
 
 void internal_temperature_task(void *param)
 {
   static int16_t last_value = 0;
+  temperature_sensor_handle_t temp_handle = NULL;
 
   ESP_LOGI(TAG, "Starting task");
-  // ESP_ERROR_CHECK(temperature_sensor_install(&temp_config, &temp_handle));
   while (true)
   {
-    // int16_t value = (int16_t)(get_internal_temperature() * 100);
-    // esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
-    // int16_t current_value = *(int16_t *)(esp_zb_zcl_get_attribute(
-    //   ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID,
-    //   ESP_ZB_ZCL_CLUSTER_ID_TEMP_MEASUREMENT,
-    //   ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-    //   ESP_ZB_ZCL_ATTR_TEMP_MEASUREMENT_VALUE_ID
-    // )->data_p);
-    // esp_zb_lock_release();
+    ESP_ERROR_CHECK(temperature_sensor_install(&temp_config, &temp_handle));
+    ESP_ERROR_CHECK(temperature_sensor_enable(temp_handle));
 
-    // if (last_value / 100 == value / 100)
-    // {
-    //   vTaskDelay(3000 / portTICK_PERIOD_MS);
-    //   continue;
-    // }
+    float temp;
+    ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_handle, &temp));
+    int16_t value = (int16_t)(temp * 100);
 
-    // ESP_LOGI(TAG, "Updating internal temperature: %d.%02d", value / 100, value % 100);
-    int16_t value = rand() % 20; // Simulate temperature value
+    ESP_ERROR_CHECK(temperature_sensor_disable(temp_handle));
+    ESP_ERROR_CHECK(temperature_sensor_uninstall(temp_handle));
+
+    if (last_value / 100 == value / 100)
+    {
+      vTaskDelay(5000 / portTICK_PERIOD_MS);
+      continue;
+    }
+    last_value = value;
+
+    ESP_LOGI(TAG, "Updating internal temperature: %d.%02d", value / 100, value % 100);
     esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
     esp_zb_zcl_set_attribute_val(
       ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID,
@@ -62,15 +61,6 @@ void internal_temperature_task(void *param)
     esp_zb_zcl_report_attr_cmd_req(&report_attr_cmd);
     esp_zb_lock_release();
 
-    vTaskDelay(3000 / portTICK_PERIOD_MS);
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
   }
-}
-
-float get_internal_temperature(void)
-{
-  ESP_ERROR_CHECK(temperature_sensor_enable(temp_handle));
-  float temp;
-  ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_handle, &temp));
-  ESP_ERROR_CHECK(temperature_sensor_disable(temp_handle));
-  return temp;
 }

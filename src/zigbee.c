@@ -21,7 +21,7 @@ void zigbee_task(void *param)
       .esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,
       .nwk_cfg.zed_cfg = {
           .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
-          .keep_alive = 300,
+          .keep_alive = ZIGBEE_KEEPALIVE,
       }
 #else
       .esp_zb_role = ESP_ZB_DEVICE_TYPE_ROUTER,
@@ -94,8 +94,8 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
     {
       ESP_LOGI(TAG, "Device started up in%s factory-reset mode", esp_zb_bdb_is_factory_new() ? "" : " non");
 
-      // if (!temperature_task_handle)
-      // xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, NULL);
+      if (!temperature_task_handle)
+        xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, &temperature_task_handle);
 
       if (esp_zb_bdb_is_factory_new())
       {
