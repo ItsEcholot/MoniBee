@@ -1,10 +1,7 @@
-#include <stdint.h>
+#pragma once
 
-#ifndef LED_H
-#define LED_H
+#include <stdint.h>
 
 void led_task(void *param);
 void set_led_percent(uint32_t percent);
 void init_led(void);
-
-#endif

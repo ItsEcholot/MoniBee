@@ -16,7 +16,7 @@ static bool has_usb_connection(void)
 {
   uint32_t *frame_num_val = (uint32_t *)USB_SERIAL_JTAG_FRAM_NUM_REG;
   uint32_t first_read_val = *frame_num_val;
-  vTaskDelay(10 / portTICK_PERIOD_MS);
+  vTaskDelay(50 / portTICK_PERIOD_MS);
   return *frame_num_val != first_read_val;
 }
 
@@ -54,5 +54,4 @@ void app_main()
   xTaskCreate(zigbee_task, "zigbee_task", 4096, NULL, 5, NULL);
   xTaskCreate(led_task, "led_task", 2048, NULL, 1, NULL);
   xTaskCreate(button_boot_task, "button_boot_task", 2048, NULL, 2, NULL);
-  // xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, NULL);
 }

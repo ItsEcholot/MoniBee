@@ -1,15 +1,17 @@
-#include "esp_check.h"
-#include "esp_mac.h"
-#include "esp_zigbee_core.h"
-#include "ha/esp_zigbee_ha_standard.h"
+#include <esp_check.h>
+#include <esp_mac.h>
+#include <esp_zigbee_core.h>
+#include <ha/esp_zigbee_ha_standard.h>
 
 #include "zcl_utility.h"
 #include "zigbee.h"
 #include "internal_temperature.h"
+#include "veml_7700.h"
 
 #define TAG "zigbee"
 
 static TaskHandle_t temperature_task_handle = NULL;
+static TaskHandle_t veml_7700_task_handle = NULL;
 
 void zigbee_task(void *param)
 {
@@ -96,6 +98,8 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
 
       if (!temperature_task_handle)
         xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, &temperature_task_handle);
+      if (!veml_7700_task_handle)
+        xTaskCreate(veml_7700_task, "veml_7700_task", 2048, NULL, 2, &veml_7700_task_handle);
 
       if (esp_zb_bdb_is_factory_new())
       {

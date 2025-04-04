@@ -1,6 +1,3 @@
-#ifndef INTERNAL_TEMPERATURE_H
-#define INTERNAL_TEMPERATURE_H
+#pragma once
 
 void internal_temperature_task(void *param);
-
-#endif

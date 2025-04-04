@@ -4,6 +4,8 @@
     "task.h": "c",
     "nvs_flash.h": "c",
     "esp_mac.h": "c",
-    "esp_clk.h": "c"
+    "esp_clk.h": "c",
+    "format": "c",
+    "veml7700.h": "c"
   }
 }

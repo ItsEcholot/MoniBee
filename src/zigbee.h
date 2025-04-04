@@ -1,5 +1,4 @@
-#ifndef ZIGBEE_H
-#define ZIGBEE_H
+#pragma once
 
 #include "esp_zigbee_core.h"
 
@@ -13,5 +12,3 @@
 void zigbee_task(void *param);
 void init_zigbee(void);
 void setup_devices(void);
-
-#endif

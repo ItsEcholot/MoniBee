@@ -1,8 +1,8 @@
-#include "esp_check.h"
+#include <esp_check.h>
 #include <driver/temperature_sensor.h>
-#include "freertos/FreeRTOS.h"
-#include "esp_zigbee_core.h"
-#include "ha/esp_zigbee_ha_standard.h"
+#include <freertos/FreeRTOS.h>
+#include <esp_zigbee_core.h>
+#include <ha/esp_zigbee_ha_standard.h>
 
 #include "internal_temperature.h"
 #include "zigbee.h"
