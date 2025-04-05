@@ -65,7 +65,7 @@ void veml_7700_task(void *param)
 
   const float resolution = veml7700_resolution_map[dev_config.integration_time][dev_config.gain];
 
-  float ambient_light = 0;
+  float last_lux = 0;
   while (true)
   {
     uint16_t counts;
@@ -74,20 +74,20 @@ void veml_7700_task(void *param)
     ESP_ERROR_CHECK(veml7700_get_ambient_light_counts(dev_handle, &counts));
     ESP_ERROR_CHECK(veml7700_disable(dev_handle));
 
-    float new_ambient_light = (float)counts * resolution;
+    float lux = (float)counts * resolution;
     /* apply correction formula for illumination > 1000 lux */
-    if (new_ambient_light > 1000)
+    if (lux > 1000)
     {
-      new_ambient_light = (VEML7700_POLY_COEF_A * powf(new_ambient_light, 4)) +
-                          (VEML7700_POLY_COEF_B * powf(new_ambient_light, 3)) +
-                          (VEML7700_POLY_COEF_C * powf(new_ambient_light, 2)) +
-                          (VEML7700_POLY_COEF_D * new_ambient_light);
+      lux = (VEML7700_POLY_COEF_A * powf(lux, 4)) +
+                          (VEML7700_POLY_COEF_B * powf(lux, 3)) +
+                          (VEML7700_POLY_COEF_C * powf(lux, 2)) +
+                          (VEML7700_POLY_COEF_D * lux);
     }
 
-    if (fabs(new_ambient_light - ambient_light) > 5)
+    if (fabs(lux - last_lux) > 5)
     {
-      ambient_light = new_ambient_light;
-      uint16_t value = (uint16_t)(10000 * log10(ambient_light) + 1);
+      last_lux = lux;
+      uint16_t value = (uint16_t)(10000 * log10(lux) + 1);
       esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
       esp_zb_zcl_set_attribute_val(
           ZIGBEE_VEML_7700_ENDPOINT_ID,
@@ -104,7 +104,7 @@ void veml_7700_task(void *param)
       report_attr_cmd.zcl_basic_cmd.src_endpoint = ZIGBEE_VEML_7700_ENDPOINT_ID;
       esp_zb_zcl_report_attr_cmd_req(&report_attr_cmd);
       esp_zb_lock_release();
-      ESP_LOGI(TAG, "%0.4f lux", ambient_light);
+      ESP_LOGI(TAG, "%0.4f lux", lux);
     }
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
