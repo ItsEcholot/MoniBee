@@ -68,10 +68,42 @@ void setup_devices(void)
       .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
       .endpoint = ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID,
   };
-  esp_zb_ep_list_add_ep(ep_list, esp_zb_temperature_sensor_clusters_create(&temp_sensor_cfg), ep_config);
-  esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID, &info);
+  ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, esp_zb_temperature_sensor_clusters_create(&temp_sensor_cfg), ep_config));
+  ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID, &info));
+
+  esp_zb_light_sensor_cfg_t light_sensor_cfg = {
+      .basic_cfg = {
+          .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
+          .power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_DEFAULT_VALUE,
+      },
+      .identify_cfg = {
+          .identify_time = ESP_ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE,
+      },
+      .illuminance_cfg = {
+          .max_value = 30000,
+          .min_value = 0,
+          .measured_value = ESP_ZB_ZCL_VALUE_S16_NONE,
+      }};
+  ep_config = (esp_zb_endpoint_config_t){
+      .app_device_id = ESP_ZB_HA_LIGHT_SENSOR_DEVICE_ID,
+      .app_device_version = 1,
+      .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+      .endpoint = ZIGBEE_VEML_7700_ENDPOINT_ID,
+  };
+  esp_zb_cluster_list_t *light_clusters = esp_zb_light_sensor_clusters_create(&light_sensor_cfg);
+  assert(light_clusters != NULL);
+  ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, light_clusters, ep_config));
+  ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_VEML_7700_ENDPOINT_ID, &info));
 
   esp_zb_device_register(ep_list);
+}
+
+void deferred_start_tasks(void)
+{
+  if (!temperature_task_handle)
+    xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 1, &temperature_task_handle);
+  if (!veml_7700_task_handle)
+    xTaskCreate(veml_7700_task, "veml_7700_task", 2048, NULL, 2, &veml_7700_task_handle);
 }
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
@@ -96,10 +128,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
     {
       ESP_LOGI(TAG, "Device started up in%s factory-reset mode", esp_zb_bdb_is_factory_new() ? "" : " non");
 
-      if (!temperature_task_handle)
-        xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 2, &temperature_task_handle);
-      if (!veml_7700_task_handle)
-        xTaskCreate(veml_7700_task, "veml_7700_task", 2048, NULL, 2, &veml_7700_task_handle);
+      deferred_start_tasks();
 
       if (esp_zb_bdb_is_factory_new())
       {

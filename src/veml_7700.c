@@ -5,28 +5,29 @@
 #include <math.h>
 
 #include "veml_7700.h"
+#include "zigbee.h"
 
 #define I2C_ADDRESS 0x10
 #define TAG "veml_7700"
-#define VEML7700_POLY_COEF_A        (6.0135e-13)
-#define VEML7700_POLY_COEF_B        (-9.3924e-9)
-#define VEML7700_POLY_COEF_C        (8.1488e-5)
-#define VEML7700_POLY_COEF_D        (1.0023)
+#define VEML7700_POLY_COEF_A (6.0135e-13)
+#define VEML7700_POLY_COEF_B (-9.3924e-9)
+#define VEML7700_POLY_COEF_C (8.1488e-5)
+#define VEML7700_POLY_COEF_D (1.0023)
 
 const float veml7700_resolution_map[13][4] = {
-  {0.0672, 0.0336, 0.5376, 0.2688},
-  {0.0336, 0.0168, 0.2688, 0.1344},
-  {0.0168, 0.0084, 0.1344, 0.0672},
-  {0.0084, 0.0042, 0.0672, 0.0336},
-  {},
-  {},
-  {},
-  {},
-  {0.1344, 0.0672, 1.0752, 0.5376},
-  {},
-  {},
-  {},
-  {0.2688, 0.1344, 2.1504, 1.0752},
+    {0.0672, 0.0336, 0.5376, 0.2688},
+    {0.0336, 0.0168, 0.2688, 0.1344},
+    {0.0168, 0.0084, 0.1344, 0.0672},
+    {0.0084, 0.0042, 0.0672, 0.0336},
+    {},
+    {},
+    {},
+    {},
+    {0.1344, 0.0672, 1.0752, 0.5376},
+    {},
+    {},
+    {},
+    {0.2688, 0.1344, 2.1504, 1.0752},
 };
 
 void veml_7700_task(void *param)
@@ -64,23 +65,47 @@ void veml_7700_task(void *param)
 
   const float resolution = veml7700_resolution_map[dev_config.integration_time][dev_config.gain];
 
+  float ambient_light = 0;
   while (true)
   {
     uint16_t counts;
     ESP_ERROR_CHECK(veml7700_enable(dev_handle));
     vTaskDelay(3 / portTICK_PERIOD_MS);
-
     ESP_ERROR_CHECK(veml7700_get_ambient_light_counts(dev_handle, &counts));
     ESP_ERROR_CHECK(veml7700_disable(dev_handle));
 
-    float ambient_light = (float)counts * resolution;
+    float new_ambient_light = (float)counts * resolution;
     /* apply correction formula for illumination > 1000 lux */
-    if(ambient_light > 1000) {
-      ambient_light = (VEML7700_POLY_COEF_A * powf(ambient_light, 4)) + (VEML7700_POLY_COEF_B * powf(ambient_light, 3)) + (VEML7700_POLY_COEF_C * powf(ambient_light, 2)) + (VEML7700_POLY_COEF_D * ambient_light);
+    if (new_ambient_light > 1000)
+    {
+      new_ambient_light = (VEML7700_POLY_COEF_A * powf(new_ambient_light, 4)) +
+                          (VEML7700_POLY_COEF_B * powf(new_ambient_light, 3)) +
+                          (VEML7700_POLY_COEF_C * powf(new_ambient_light, 2)) +
+                          (VEML7700_POLY_COEF_D * new_ambient_light);
     }
 
-    ESP_LOGI(TAG, "Counts: %d", counts);
-    ESP_LOGI(TAG, "Ambient light: %0.4f", ambient_light);
+    if (fabs(new_ambient_light - ambient_light) > 5)
+    {
+      ambient_light = new_ambient_light;
+      uint16_t value = (uint16_t)(10000 * log10(ambient_light) + 1);
+      esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
+      esp_zb_zcl_set_attribute_val(
+          ZIGBEE_VEML_7700_ENDPOINT_ID,
+          ESP_ZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT,
+          ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+          ESP_ZB_ZCL_ATTR_ILLUMINANCE_MEASUREMENT_MEASURED_VALUE_ID,
+          &value,
+          false);
+      esp_zb_zcl_report_attr_cmd_t report_attr_cmd = {0};
+      report_attr_cmd.address_mode = ESP_ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT;
+      report_attr_cmd.attributeID = ESP_ZB_ZCL_ATTR_ILLUMINANCE_MEASUREMENT_MEASURED_VALUE_ID;
+      report_attr_cmd.direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_CLI;
+      report_attr_cmd.clusterID = ESP_ZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT;
+      report_attr_cmd.zcl_basic_cmd.src_endpoint = ZIGBEE_VEML_7700_ENDPOINT_ID;
+      esp_zb_zcl_report_attr_cmd_req(&report_attr_cmd);
+      esp_zb_lock_release();
+      ESP_LOGI(TAG, "%0.4f lux", ambient_light);
+    }
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
