@@ -5,6 +5,7 @@
 #include <esp_sleep.h>
 #include <nvs_flash.h>
 #include <esp_zigbee_core.h>
+#include <driver/i2c_master.h>
 #include <soc/usb_serial_jtag_reg.h>
 
 #include "led.h"
@@ -20,7 +21,7 @@ static bool has_usb_connection(void)
   return *frame_num_val != first_read_val;
 }
 
-static esp_err_t esp_power_save_init(void)
+static esp_err_t init_power_save(void)
 {
   esp_err_t rc = ESP_OK;
 #ifdef CONFIG_PM_ENABLE
@@ -37,6 +38,23 @@ static esp_err_t esp_power_save_init(void)
   return rc;
 }
 
+static esp_err_t init_i2s(void)
+{
+  i2c_master_bus_config_t bus_config = {
+      .i2c_port = I2C_NUM_0,
+      .clk_source = I2C_CLK_SRC_DEFAULT,
+      .scl_io_num = GPIO_NUM_1,
+      .sda_io_num = GPIO_NUM_0,
+      .flags = {
+          .allow_pd = true,
+          .enable_internal_pullup = true,
+      },
+  };
+
+  i2c_master_bus_handle_t bus_handle;
+  return i2c_new_master_bus(&bus_config, &bus_handle);
+}
+
 void app_main()
 {
   esp_zb_platform_config_t config = {
@@ -48,7 +66,8 @@ void app_main()
       },
   };
   ESP_ERROR_CHECK(nvs_flash_init());
-  ESP_ERROR_CHECK(esp_power_save_init());
+  ESP_ERROR_CHECK(init_power_save());
+  ESP_ERROR_CHECK(init_i2s());
   ESP_ERROR_CHECK(esp_zb_platform_config(&config));
 
   xTaskCreate(zigbee_task, "zigbee_task", 4096, NULL, 5, NULL);

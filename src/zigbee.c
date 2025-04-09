@@ -2,16 +2,20 @@
 #include <esp_mac.h>
 #include <esp_zigbee_core.h>
 #include <ha/esp_zigbee_ha_standard.h>
+#include <esp_zigbee_type.h>
 
 #include "zcl_utility.h"
 #include "zigbee.h"
 #include "internal_temperature.h"
 #include "veml_7700.h"
+#include "ddc.h"
 
 #define TAG "zigbee"
 
 static TaskHandle_t temperature_task_handle = NULL;
 static TaskHandle_t veml_7700_task_handle = NULL;
+static TaskHandle_t ddc_task_handle = NULL;
+static uint8_t ddc_input = 0x01;
 
 void zigbee_task(void *param)
 {
@@ -58,6 +62,13 @@ void setup_devices(void)
 
   esp_zb_ep_list_t *ep_list = esp_zb_ep_list_create();
   esp_zb_endpoint_config_t ep_config;
+  esp_zb_basic_cluster_cfg_t basic_cfg = {
+      .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
+      .power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_DEFAULT_VALUE,
+  };
+  esp_zb_identify_cluster_cfg_t identify_cfg = {
+      .identify_time = ESP_ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE,
+  };
 
   esp_zb_temperature_sensor_cfg_t temp_sensor_cfg = ESP_ZB_DEFAULT_TEMPERATURE_SENSOR_CONFIG();
   temp_sensor_cfg.temp_meas_cfg.min_value = -1000;
@@ -72,13 +83,8 @@ void setup_devices(void)
   ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID, &info));
 
   esp_zb_light_sensor_cfg_t light_sensor_cfg = {
-      .basic_cfg = {
-          .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
-          .power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_DEFAULT_VALUE,
-      },
-      .identify_cfg = {
-          .identify_time = ESP_ZB_ZCL_IDENTIFY_IDENTIFY_TIME_DEFAULT_VALUE,
-      },
+      .basic_cfg = basic_cfg,
+      .identify_cfg = identify_cfg,
       .illuminance_cfg = {
           .max_value = 30000,
           .min_value = 0,
@@ -91,9 +97,28 @@ void setup_devices(void)
       .endpoint = ZIGBEE_VEML_7700_ENDPOINT_ID,
   };
   esp_zb_cluster_list_t *light_clusters = esp_zb_light_sensor_clusters_create(&light_sensor_cfg);
-  assert(light_clusters != NULL);
   ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, light_clusters, ep_config));
   ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_VEML_7700_ENDPOINT_ID, &info));
+
+  ep_config = (esp_zb_endpoint_config_t){
+      .app_device_id = ESP_ZB_HA_CUSTOM_ATTR_DEVICE_ID,
+      .app_device_version = 1,
+      .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+      .endpoint = ZIGBEE_DDC_ENDPOINT_ID,
+  };
+  esp_zb_cluster_list_t *ddc_clusters = esp_zb_zcl_cluster_list_create();
+  esp_zb_attribute_list_t *input_select_attrs = esp_zb_zcl_attr_list_create(ZIGBEE_DDC_CLUSTER_ID);
+  ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
+      input_select_attrs,
+      ZIGBEE_DDC_INPUT_SELECT_ATTR_ID,
+      ESP_ZB_ZCL_ATTR_TYPE_8BIT_ENUM,
+      ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
+      &ddc_input));
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(ddc_clusters, esp_zb_basic_cluster_create(&basic_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(ddc_clusters, esp_zb_identify_cluster_create(&identify_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_custom_cluster(ddc_clusters, input_select_attrs, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, ddc_clusters, ep_config));
+  ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_DDC_ENDPOINT_ID, &info));
 
   esp_zb_device_register(ep_list);
 }
@@ -104,6 +129,8 @@ void deferred_start_tasks(void)
     xTaskCreate(internal_temperature_task, "internal_temperature_task", 2048, NULL, 1, &temperature_task_handle);
   if (!veml_7700_task_handle)
     xTaskCreate(veml_7700_task, "veml_7700_task", 2048, NULL, 2, &veml_7700_task_handle);
+  if (!ddc_task_handle)
+    xTaskCreate(ddc_task, "ddc_task", 2048, NULL, 2, &ddc_task_handle);
 }
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
