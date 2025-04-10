@@ -17,7 +17,7 @@ static bool has_usb_connection(void)
 {
   uint32_t *frame_num_val = (uint32_t *)USB_SERIAL_JTAG_FRAM_NUM_REG;
   uint32_t first_read_val = *frame_num_val;
-  vTaskDelay(50 / portTICK_PERIOD_MS);
+  vTaskDelay(100 / portTICK_PERIOD_MS);
   return *frame_num_val != first_read_val;
 }
 

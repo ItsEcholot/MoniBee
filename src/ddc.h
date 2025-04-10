@@ -9,4 +9,6 @@ typedef enum {
   THUNDERBOLT_2 = 0x1b,
 } ddc_input_enum_t;
 
+extern MessageBufferHandle_t ddc_input_message_buffer;
+
 void ddc_task(void *param);

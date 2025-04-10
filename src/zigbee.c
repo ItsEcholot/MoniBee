@@ -15,7 +15,9 @@
 static TaskHandle_t temperature_task_handle = NULL;
 static TaskHandle_t veml_7700_task_handle = NULL;
 static TaskHandle_t ddc_task_handle = NULL;
-static uint8_t ddc_input = 0x01;
+
+static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message);
+static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message);
 
 void zigbee_task(void *param)
 {
@@ -42,6 +44,7 @@ void zigbee_task(void *param)
   esp_zb_set_tx_power(ZIGBEE_TX_POWER);
 
   setup_devices();
+  esp_zb_core_action_handler_register(zb_action_handler);
 
 #ifdef ZIGBEE_ROUTER_MODE
   ESP_ERROR_CHECK(esp_zb_set_channel_mask(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
@@ -108,12 +111,13 @@ void setup_devices(void)
   };
   esp_zb_cluster_list_t *ddc_clusters = esp_zb_zcl_cluster_list_create();
   esp_zb_attribute_list_t *input_select_attrs = esp_zb_zcl_attr_list_create(ZIGBEE_DDC_CLUSTER_ID);
+  uint16_t ddc_input_select_value = ESP_ZB_ZCL_VALUE_U16_NONE;
   ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
       input_select_attrs,
       ZIGBEE_DDC_INPUT_SELECT_ATTR_ID,
-      ESP_ZB_ZCL_ATTR_TYPE_8BIT_ENUM,
+      ESP_ZB_ZCL_ATTR_TYPE_U16,
       ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
-      &ddc_input));
+      &ddc_input_select_value));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(ddc_clusters, esp_zb_basic_cluster_create(&basic_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(ddc_clusters, esp_zb_identify_cluster_create(&identify_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_custom_cluster(ddc_clusters, input_select_attrs, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
@@ -130,7 +134,7 @@ void deferred_start_tasks(void)
   if (!veml_7700_task_handle)
     xTaskCreate(veml_7700_task, "veml_7700_task", 2048, NULL, 2, &veml_7700_task_handle);
   if (!ddc_task_handle)
-    xTaskCreate(ddc_task, "ddc_task", 2048, NULL, 2, &ddc_task_handle);
+    xTaskCreate(ddc_task, "ddc_task", 2048, NULL, 3, &ddc_task_handle);
 }
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
@@ -205,4 +209,42 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
              esp_err_to_name(err_status));
     break;
   }
+}
+
+static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message)
+{
+  esp_err_t ret = ESP_OK;
+  switch (callback_id)
+  {
+    case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
+        ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
+        break;
+    case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
+      break;
+    default:
+        ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
+        break;
+  }
+  return ret;
+}
+
+static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message)
+{
+    esp_err_t ret = ESP_OK;
+    ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
+    ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
+                        message->info.status);
+    ESP_LOGI(TAG, "Received message: endpoint(%d), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
+             message->attribute.id, message->attribute.data.size);
+
+    if (message->info.dst_endpoint == ZIGBEE_DDC_ENDPOINT_ID) {
+        if (message->info.cluster == ZIGBEE_DDC_CLUSTER_ID) {
+            if (message->attribute.id == ZIGBEE_DDC_INPUT_SELECT_ATTR_ID && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_U16) {
+                uint16_t value = *(uint16_t *)message->attribute.data.value;
+                ESP_LOGI(TAG, "Setting input to %d", value);
+                xMessageBufferSend(ddc_input_message_buffer, &value, sizeof(value), 100 / portTICK_PERIOD_MS);
+            }
+        }
+    }
+    return ret;
 }
