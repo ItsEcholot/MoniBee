@@ -110,17 +110,23 @@ void setup_devices(void)
       .endpoint = ZIGBEE_DDC_ENDPOINT_ID,
   };
   esp_zb_cluster_list_t *ddc_clusters = esp_zb_zcl_cluster_list_create();
-  esp_zb_attribute_list_t *input_select_attrs = esp_zb_zcl_attr_list_create(ZIGBEE_DDC_CLUSTER_ID);
-  uint16_t ddc_input_select_value = ESP_ZB_ZCL_VALUE_U16_NONE;
+  esp_zb_attribute_list_t *ddc_attrs = esp_zb_zcl_attr_list_create(ZIGBEE_DDC_CLUSTER_ID);
+  uint16_t uint16_placeholder_value = ESP_ZB_ZCL_VALUE_U16_NONE;
   ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
-      input_select_attrs,
+      ddc_attrs,
       ZIGBEE_DDC_INPUT_SELECT_ATTR_ID,
       ESP_ZB_ZCL_ATTR_TYPE_U16,
       ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
-      &ddc_input_select_value));
+      &uint16_placeholder_value));
+  ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
+      ddc_attrs,
+      ZIGBEE_DDC_BRIGHTNESS_ATTR_ID,
+      ESP_ZB_ZCL_ATTR_TYPE_U16,
+      ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
+      &uint16_placeholder_value));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(ddc_clusters, esp_zb_basic_cluster_create(&basic_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(ddc_clusters, esp_zb_identify_cluster_create(&identify_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-  ESP_ERROR_CHECK(esp_zb_cluster_list_add_custom_cluster(ddc_clusters, input_select_attrs, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_custom_cluster(ddc_clusters, ddc_attrs, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
   ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, ddc_clusters, ep_config));
   ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_DDC_ENDPOINT_ID, &info));
 
