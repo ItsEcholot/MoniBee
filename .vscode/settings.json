@@ -11,6 +11,14 @@
     "zcl_utility.h": "c",
     "esp_zigbee_type.h": "c",
     "esp_zigbee_zdo_command.h": "c",
-    "esp_zigbee_zdo_common.h": "c"
+    "esp_zigbee_zdo_common.h": "c",
+    "charconv": "c",
+    "optional": "c",
+    "system_error": "c",
+    "array": "c",
+    "functional": "c",
+    "tuple": "c",
+    "type_traits": "c",
+    "utility": "c"
   }
 }

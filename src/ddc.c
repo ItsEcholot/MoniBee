@@ -7,10 +7,8 @@
 
 #define TAG "ddc"
 #define I2C_ADDRESS 0x37
-#define VCP_OP_BRIGHTNESS 0x10
-#define VCP_OP_INPUT 0x60
 
-static uint8_t ddc_input_message_buffer_storage[8];
+static uint8_t ddc_input_message_buffer_storage[sizeof(ddc_command_t) * 3];
 StaticMessageBuffer_t ddc_input_message_buffer_struct;
 MessageBufferHandle_t ddc_input_message_buffer;
 
@@ -83,9 +81,9 @@ void ddc_task(void *param)
   uint16_t last_input = 0;
   while (true)
   {
-    uint16_t brightness = read_vcp(dev_handle, VCP_OP_BRIGHTNESS, last_brightness);
-    uint16_t input = read_vcp(dev_handle, VCP_OP_INPUT, last_input);
-    
+    uint16_t brightness = read_vcp(dev_handle, DDC_VCP_OP_BRIGHTNESS, last_brightness);
+    uint16_t input = read_vcp(dev_handle, DDC_VCP_OP_INPUT, last_input);
+
     if (input != last_input)
     {
       ESP_LOGI(TAG, "Input: %d", input);
@@ -144,13 +142,13 @@ void ddc_task(void *param)
       esp_zb_lock_release();
     }
 
-    uint16_t next_input = 0;
-    xMessageBufferReceive(ddc_input_message_buffer, &next_input, sizeof(next_input), 1000 / portTICK_PERIOD_MS);
+    ddc_command_t command = {0};
+    xMessageBufferReceive(ddc_input_message_buffer, &command, sizeof(command), 1000 / portTICK_PERIOD_MS);
 
-    if (next_input != 0)
+    if (command.operation != NULL)
     {
-      ESP_LOGI(TAG, "Setting input to %d", next_input);
-      write_vcp(dev_handle, 0x60, next_input);
+      ESP_LOGI(TAG, "Executing command %d", command.operation);
+      write_vcp(dev_handle, command.operation, command.value);
     }
   }
 }

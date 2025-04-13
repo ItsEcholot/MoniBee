@@ -222,35 +222,47 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
   esp_err_t ret = ESP_OK;
   switch (callback_id)
   {
-    case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
-        ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
-        break;
-    case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
-      break;
-    default:
-        ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
-        break;
+  case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
+    ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
+    break;
+  case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
+    break;
+  default:
+    ESP_LOGW(TAG, "Receive Zigbee action(0x%x) callback", callback_id);
+    break;
   }
   return ret;
 }
 
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message)
 {
-    esp_err_t ret = ESP_OK;
-    ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
-    ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
-                        message->info.status);
-    ESP_LOGI(TAG, "Received message: endpoint(%d), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
-             message->attribute.id, message->attribute.data.size);
+  esp_err_t ret = ESP_OK;
+  ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
+  ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
+                      message->info.status);
+  ESP_LOGI(TAG, "Received message: endpoint(%d), cluster(0x%x), attribute(0x%x), data size(%d)", message->info.dst_endpoint, message->info.cluster,
+           message->attribute.id, message->attribute.data.size);
 
-    if (message->info.dst_endpoint == ZIGBEE_DDC_ENDPOINT_ID) {
-        if (message->info.cluster == ZIGBEE_DDC_CLUSTER_ID) {
-            if (message->attribute.id == ZIGBEE_DDC_INPUT_SELECT_ATTR_ID && message->attribute.data.type == ESP_ZB_ZCL_ATTR_TYPE_U16) {
-                uint16_t value = *(uint16_t *)message->attribute.data.value;
-                ESP_LOGI(TAG, "Setting input to %d", value);
-                xMessageBufferSend(ddc_input_message_buffer, &value, sizeof(value), 100 / portTICK_PERIOD_MS);
-            }
-        }
+  if (message->info.dst_endpoint == ZIGBEE_DDC_ENDPOINT_ID)
+  {
+    if (message->info.cluster == ZIGBEE_DDC_CLUSTER_ID)
+    {
+      ddc_command_t command = {0};
+      switch (message->attribute.id)
+      {
+      case ZIGBEE_DDC_INPUT_SELECT_ATTR_ID:
+        command.operation = DDC_VCP_OP_INPUT;
+        command.value = *(uint16_t *)message->attribute.data.value;
+        break;
+      case ZIGBEE_DDC_BRIGHTNESS_ATTR_ID:
+        command.operation = DDC_VCP_OP_BRIGHTNESS;
+        command.value = *(uint16_t *)message->attribute.data.value;
+        break;
+      default:
+        break;
+      }
+      xMessageBufferSend(ddc_input_message_buffer, &command, sizeof(command), 100 / portTICK_PERIOD_MS);
     }
-    return ret;
+  }
+  return ret;
 }
