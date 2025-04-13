@@ -2,6 +2,7 @@
 
 #define DDC_VCP_OP_BRIGHTNESS 0x10
 #define DDC_VCP_OP_INPUT 0x60
+#define DDC_VCP_OP_POWER_MODE 0xD6
 
 typedef enum {
   DISPLAYPORT_1 = 0x0f,

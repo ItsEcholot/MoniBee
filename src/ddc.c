@@ -79,10 +79,12 @@ void ddc_task(void *param)
 
   uint16_t last_brightness = 0;
   uint16_t last_input = 0;
+  uint16_t last_power_mode = 0;
   while (true)
   {
     uint16_t brightness = read_vcp(dev_handle, DDC_VCP_OP_BRIGHTNESS, last_brightness);
     uint16_t input = read_vcp(dev_handle, DDC_VCP_OP_INPUT, last_input);
+    uint16_t power_mode = read_vcp(dev_handle, DDC_VCP_OP_POWER_MODE, last_power_mode);
 
     if (input != last_input)
     {
@@ -142,10 +144,39 @@ void ddc_task(void *param)
       esp_zb_lock_release();
     }
 
+    if (power_mode != last_power_mode)
+    {
+      ESP_LOGI(TAG, "Power mode: %d", power_mode);
+      last_power_mode = power_mode;
+      esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
+      esp_zb_zcl_set_attribute_val(
+          ZIGBEE_DDC_ENDPOINT_ID,
+          ZIGBEE_DDC_CLUSTER_ID,
+          ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+          ZIGBEE_DDC_POWER_MODE_ATTR_ID,
+          &power_mode,
+          false);
+      esp_zb_zcl_report_attr_cmd_t report_attr_cmd = {
+          .zcl_basic_cmd = {
+              .dst_addr_u = {
+                  .addr_short = 0x0000,
+              },
+              .dst_endpoint = ZIGBEE_DDC_ENDPOINT_ID,
+              .src_endpoint = ZIGBEE_DDC_ENDPOINT_ID,
+          },
+          .address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
+          .clusterID = ZIGBEE_DDC_CLUSTER_ID,
+          .attributeID = ZIGBEE_DDC_POWER_MODE_ATTR_ID,
+          .direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_CLI,
+      };
+      ESP_ERROR_CHECK(esp_zb_zcl_report_attr_cmd_req(&report_attr_cmd));
+      esp_zb_lock_release();
+    }
+
     ddc_command_t command = {0};
     xMessageBufferReceive(ddc_input_message_buffer, &command, sizeof(command), 1000 / portTICK_PERIOD_MS);
 
-    if (command.operation != NULL)
+    if (command.operation != 0)
     {
       ESP_LOGI(TAG, "Executing command %d", command.operation);
       write_vcp(dev_handle, command.operation, command.value);

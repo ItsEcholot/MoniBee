@@ -112,10 +112,11 @@ void setup_devices(void)
   esp_zb_cluster_list_t *ddc_clusters = esp_zb_zcl_cluster_list_create();
   esp_zb_attribute_list_t *ddc_attrs = esp_zb_zcl_attr_list_create(ZIGBEE_DDC_CLUSTER_ID);
   uint16_t uint16_placeholder_value = ESP_ZB_ZCL_VALUE_U16_NONE;
+  uint8_t uint8_placeholder_value = ESP_ZB_ZCL_VALUE_U8_NONE;
   ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
       ddc_attrs,
       ZIGBEE_DDC_INPUT_SELECT_ATTR_ID,
-      ESP_ZB_ZCL_ATTR_TYPE_U16,
+      ESP_ZB_ZCL_ATTR_TYPE_16BIT_ENUM,
       ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
       &uint16_placeholder_value));
   ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
@@ -124,6 +125,12 @@ void setup_devices(void)
       ESP_ZB_ZCL_ATTR_TYPE_U16,
       ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
       &uint16_placeholder_value));
+  ESP_ERROR_CHECK(esp_zb_custom_cluster_add_custom_attr(
+      ddc_attrs,
+      ZIGBEE_DDC_POWER_MODE_ATTR_ID,
+      ESP_ZB_ZCL_ATTR_TYPE_8BIT_ENUM,
+      ESP_ZB_ZCL_ATTR_ACCESS_READ_WRITE | ESP_ZB_ZCL_ATTR_ACCESS_REPORTING,
+      &uint8_placeholder_value));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(ddc_clusters, esp_zb_basic_cluster_create(&basic_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(ddc_clusters, esp_zb_identify_cluster_create(&identify_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
   ESP_ERROR_CHECK(esp_zb_cluster_list_add_custom_cluster(ddc_clusters, ddc_attrs, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
@@ -257,6 +264,10 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
       case ZIGBEE_DDC_BRIGHTNESS_ATTR_ID:
         command.operation = DDC_VCP_OP_BRIGHTNESS;
         command.value = *(uint16_t *)message->attribute.data.value;
+        break;
+      case ZIGBEE_DDC_POWER_MODE_ATTR_ID:
+        command.operation = DDC_VCP_OP_POWER_MODE;
+        command.value = *(uint8_t *)message->attribute.data.value;
         break;
       default:
         break;
