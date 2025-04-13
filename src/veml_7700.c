@@ -54,7 +54,6 @@ void veml_7700_task(void *param)
 
   const float resolution = veml7700_resolution_map[dev_config.integration_time][dev_config.gain];
 
-  float last_lux = 0;
   while (true)
   {
     uint16_t counts;
@@ -73,28 +72,17 @@ void veml_7700_task(void *param)
             (VEML7700_POLY_COEF_D * lux);
     }
 
-    if (fabs(lux - last_lux) > 5)
-    {
-      last_lux = lux;
-      uint16_t value = (uint16_t)(10000 * log10(lux) + 1);
-      esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
-      esp_zb_zcl_set_attribute_val(
-          ZIGBEE_VEML_7700_ENDPOINT_ID,
-          ESP_ZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT,
-          ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-          ESP_ZB_ZCL_ATTR_ILLUMINANCE_MEASUREMENT_MEASURED_VALUE_ID,
-          &value,
-          false);
-      esp_zb_zcl_report_attr_cmd_t report_attr_cmd = {0};
-      report_attr_cmd.address_mode = ESP_ZB_APS_ADDR_MODE_DST_ADDR_ENDP_NOT_PRESENT;
-      report_attr_cmd.attributeID = ESP_ZB_ZCL_ATTR_ILLUMINANCE_MEASUREMENT_MEASURED_VALUE_ID;
-      report_attr_cmd.direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_CLI;
-      report_attr_cmd.clusterID = ESP_ZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT;
-      report_attr_cmd.zcl_basic_cmd.src_endpoint = ZIGBEE_VEML_7700_ENDPOINT_ID;
-      esp_zb_zcl_report_attr_cmd_req(&report_attr_cmd);
-      esp_zb_lock_release();
-      ESP_LOGI(TAG, "%0.4f lux", lux);
-    }
+    uint16_t value = (uint16_t)(10000 * log10(lux) + 1);
+    ESP_LOGI(TAG, "%0.4f lux", lux);
+    esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
+    esp_zb_zcl_set_attribute_val(
+        ZIGBEE_VEML_7700_ENDPOINT_ID,
+        ESP_ZB_ZCL_CLUSTER_ID_ILLUMINANCE_MEASUREMENT,
+        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+        ESP_ZB_ZCL_ATTR_ILLUMINANCE_MEASUREMENT_MEASURED_VALUE_ID,
+        &value,
+        false);
+    esp_zb_lock_release();
 
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
