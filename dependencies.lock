@@ -11,11 +11,17 @@ dependencies:
       service_url: https://api.components.espressif.com/
       type: service
     version: 1.6.4
+  espressif/led_strip:
+    component_hash: b578eb926d9f6402fd45398b53c9bd5d1b7a15c1b2974d25aa3088e6c79b0b4c
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 3.0.1
   idf:
     component_hash: null
     source:
       type: idf
     version: 5.4.0
-manifest_hash: e7f07aceabc9e25d24f3214263ccd7f5af7b5ed1709043dbcabb824cf47f951f
+manifest_hash: a2d00eaaad771c3be6d1e71adf84322a165e760f422ffd31c2b8c20c21483c4e
 target: esp32c6
 version: 1.0.0

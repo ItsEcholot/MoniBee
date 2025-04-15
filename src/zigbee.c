@@ -4,6 +4,7 @@
 #include <ha/esp_zigbee_ha_standard.h>
 #include <esp_zigbee_type.h>
 
+#include "led.h"
 #include "zcl_utility.h"
 #include "zigbee.h"
 #include "internal_temperature.h"
@@ -168,6 +169,8 @@ void deferred_start_tasks(void)
     xTaskCreate(ddc_task, "ddc_task", 2048, NULL, 3, &ddc_task_handle);
   if (!ir_led_task_handle)
     xTaskCreate(ir_led_task, "ir_led_task", 2048, NULL, 3, &ir_led_task_handle);
+
+  set_rgb_led(0, 0, 0);
 }
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
@@ -192,8 +195,6 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
     {
       ESP_LOGI(TAG, "Device started up in%s factory-reset mode", esp_zb_bdb_is_factory_new() ? "" : " non");
 
-      deferred_start_tasks();
-
       if (esp_zb_bdb_is_factory_new())
       {
         ESP_LOGI(TAG, "Start network steering");
@@ -202,6 +203,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
       else
       {
         ESP_LOGI(TAG, "Device rebooted");
+        deferred_start_tasks();
       }
     }
     else
