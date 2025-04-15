@@ -18,6 +18,6 @@ typedef struct {
   uint16_t value;
 } ddc_command_t;
 
-extern MessageBufferHandle_t ddc_input_message_buffer;
+extern MessageBufferHandle_t ddc_message_buffer;
 
 void ddc_task(void *param);

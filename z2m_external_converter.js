@@ -1,5 +1,8 @@
 const m = require('zigbee-herdsman-converters/lib/modernExtend');
 const Zcl = require('zigbee-herdsman').Zcl;
+const exposes = require('zigbee-herdsman-converters/lib/exposes');
+const e = exposes.presets;
+const ea = exposes.access;
 
 const definition = {
   zigbeeModel: ['MoniBee'],
@@ -11,18 +14,21 @@ const definition = {
       endpoints: {
         'internal_temperature': 10,
         'veml_7700': 11,
-        'ddc': 12
+        'ddc': 12,
+        'ir': 13,
       }
     }),
     m.temperature({
       endpointNames: ['internal_temperature'],
       label: 'Internal Temperature',
+      reporting: {min: 5, max: 60, change: 100},
     }),
     m.illuminance({
       endpointNames: ['veml_7700'],
       label: 'Ambient Illuminance',
       name: 'ambient_illuminance',
       precision: 0,
+      reporting: {min: 1, max: 5, change: 10},
     }),
     m.deviceAddCustomCluster('manuSpecificMoniBeeDDC', {
       ID: 0xFF00,
@@ -32,6 +38,20 @@ const definition = {
         ddc_power_mode: {ID: 0x0002, type: Zcl.DataType.ENUM8},
       },
       commands: {},
+      commandsResponse: {},
+    }),
+    m.deviceAddCustomCluster('manuSpecificMoniBeeIR', {
+      ID: 0xFF01,
+      attributes: {},
+      commands: {
+        sendIRCommand: {
+          ID: 0x0000, 
+          parameters: [
+            {name: 'address', type: Zcl.DataType.UINT16},
+            {name: 'command', type: Zcl.DataType.UINT16},
+          ],
+        },
+      },
       commandsResponse: {},
     }),
     m.enumLookup({
@@ -56,6 +76,7 @@ const definition = {
       cluster: 'manuSpecificMoniBeeDDC',
       attribute: 'ddc_input',
       access: 'ALL',
+      reporting: {min: 1, max: 60, change: 1},
     }),
     m.numeric({
       name: 'ddc_brightness',
@@ -70,12 +91,14 @@ const definition = {
       attribute: 'ddc_brightness',
       access: 'ALL',
       precision: 0,
+      reporting: {min: 1, max: 60, change: 1},
     }),
     m.enumLookup({
       name: 'ddc_power_mode',
       label: 'Display Power Mode',
       description: 'Currently active power mode',
       lookup: {
+        'Unknown': 0x00,
         'On': 0x01,
         'Standby': 0x02,
         'Suspend': 0x03,
@@ -85,23 +108,35 @@ const definition = {
       cluster: 'manuSpecificMoniBeeDDC',
       attribute: 'ddc_power_mode',
       access: 'ALL',
+      reporting: {min: 1, max: 60, change: 1},
     }),
   ],
-  configure: async (device) => {
-    await device.getEndpoint(10).configureReporting('msTemperatureMeasurement', [
-      {attribute: 'measuredValue', minimumReportInterval: 5, maximumReportInterval: 30, reportableChange: 100},
-    ]);
+  exposes: [
+    e.composite('send_ir_command', 'send_ir_command')
+      .withDescription('Send IR Command')
+      .withFeature(exposes.numeric('address', ea.SET).withValueMin(0).withValueMax(0xFFFF).withDescription('IR NEC Address'))
+      .withFeature(exposes.numeric('command', ea.SET).withValueMin(0).withValueMax(0xFFFF).withDescription('IR NEC Command'))
+  ],
+  toZigbee: [{
+    key: ['send_ir_command'],
+    convertSet: async (entity, key, value, meta) => {
+      const entityToUse = meta.device.getEndpoint(13);
+      const payload = {
+        address: value.address,
+        command: value.command,
+      };
 
-    await device.getEndpoint(11).configureReporting('msIlluminanceMeasurement', [
-      {attribute: 'measuredValue', minimumReportInterval: 1, maximumReportInterval: 5, reportableChange: 5},
-    ]);
+      await entityToUse.command(
+        'manuSpecificMoniBeeIR',
+        'sendIRCommand',
+        payload,
+        {}
+      );
 
-    await device.getEndpoint(12).configureReporting('manuSpecificMoniBeeDDC', [
-      {attribute: 'ddc_input', minimumReportInterval: 1, maximumReportInterval: 60, reportableChange: 1},
-      {attribute: 'ddc_brightness', minimumReportInterval: 1, maximumReportInterval: 60, reportableChange: 1},
-      {attribute: 'ddc_power_mode', minimumReportInterval: 1, maximumReportInterval: 60, reportableChange: 1},
-    ]);
-  },
+      return {state: {send_ir_command: payload}};
+    },
+    convertGet: null,
+  }],
   meta: {
     multiEndpoint: true
   },

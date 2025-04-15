@@ -30,12 +30,11 @@ void internal_temperature_task(void *param)
 
     float temp;
     ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_handle, &temp));
-    int16_t value = (int16_t)(temp * 100);
-
     ESP_ERROR_CHECK(temperature_sensor_disable(temp_handle));
     ESP_ERROR_CHECK(temperature_sensor_uninstall(temp_handle));
 
-    ESP_LOGI(TAG, "%d.%02d °C", value / 100, value % 100);
+    int16_t value = (int16_t)(temp * 100);
+    ESP_LOGI(TAG, "%.2f °C", temp);
     esp_zb_lock_acquire(1000 / portTICK_PERIOD_MS);
     esp_zb_zcl_set_attribute_val(
         ZIGBEE_INTERNAL_TEMPERATURE_ENDPOINT_ID,

@@ -8,9 +8,9 @@
 #define TAG "ddc"
 #define I2C_ADDRESS 0x37
 
-static uint8_t ddc_input_message_buffer_storage[sizeof(ddc_command_t) * 3];
-StaticMessageBuffer_t ddc_input_message_buffer_struct;
-MessageBufferHandle_t ddc_input_message_buffer;
+static uint8_t ddc_message_buffer_storage[sizeof(ddc_command_t) * 10];
+StaticMessageBuffer_t ddc_message_buffer_struct;
+MessageBufferHandle_t ddc_message_buffer;
 
 uint16_t read_vcp(i2c_master_dev_handle_t dev_handle, uint8_t operation, uint16_t fallback_value)
 {
@@ -72,10 +72,10 @@ void ddc_task(void *param)
   i2c_master_dev_handle_t dev_handle;
   ESP_ERROR_CHECK(i2c_master_bus_add_device(bus_handle, &dev_config, &dev_handle));
 
-  ddc_input_message_buffer = xMessageBufferCreateStatic(
-      sizeof(ddc_input_message_buffer_storage),
-      ddc_input_message_buffer_storage,
-      &ddc_input_message_buffer_struct);
+  ddc_message_buffer = xMessageBufferCreateStatic(
+      sizeof(ddc_message_buffer_storage),
+      ddc_message_buffer_storage,
+      &ddc_message_buffer_struct);
 
   uint16_t last_brightness = 0;
   uint16_t last_input = 0;
@@ -114,7 +114,7 @@ void ddc_task(void *param)
     esp_zb_lock_release();
 
     ddc_command_t command = {0};
-    xMessageBufferReceive(ddc_input_message_buffer, &command, sizeof(command), 1000 / portTICK_PERIOD_MS);
+    xMessageBufferReceive(ddc_message_buffer, &command, sizeof(command), 1000 / portTICK_PERIOD_MS);
     if (command.operation != 0)
     {
       ESP_LOGI(TAG, "Executing command %d", command.operation);

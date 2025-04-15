@@ -9,15 +9,19 @@
 #include "internal_temperature.h"
 #include "veml_7700.h"
 #include "ddc.h"
+#include "ir_led.h"
+#include "ir_nec_encoder.h"
 
 #define TAG "zigbee"
 
 static TaskHandle_t temperature_task_handle = NULL;
 static TaskHandle_t veml_7700_task_handle = NULL;
 static TaskHandle_t ddc_task_handle = NULL;
+static TaskHandle_t ir_led_task_handle = NULL;
 
 static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id, const void *message);
 static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t *message);
+static esp_err_t zb_custom_cmd_handler(const esp_zb_zcl_custom_cluster_command_message_t *message);
 
 void zigbee_task(void *param)
 {
@@ -137,6 +141,20 @@ void setup_devices(void)
   ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, ddc_clusters, ep_config));
   ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_DDC_ENDPOINT_ID, &info));
 
+  ep_config = (esp_zb_endpoint_config_t){
+      .app_device_id = ESP_ZB_HA_CUSTOM_ATTR_DEVICE_ID,
+      .app_device_version = 1,
+      .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
+      .endpoint = ZIGBEE_IR_ENDPOINT_ID,
+  };
+  esp_zb_cluster_list_t *ir_clusters = esp_zb_zcl_cluster_list_create();
+  esp_zb_attribute_list_t *ir_attrs = esp_zb_zcl_attr_list_create(ZIGBEE_IR_CLUSTER_ID);
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(ir_clusters, esp_zb_basic_cluster_create(&basic_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(ir_clusters, esp_zb_identify_cluster_create(&identify_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_cluster_list_add_custom_cluster(ir_clusters, ir_attrs, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+  ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(ep_list, ir_clusters, ep_config));
+  ESP_ERROR_CHECK(esp_zcl_utility_add_ep_basic_manufacturer_info(ep_list, ZIGBEE_IR_ENDPOINT_ID, &info));
+
   esp_zb_device_register(ep_list);
 }
 
@@ -148,6 +166,8 @@ void deferred_start_tasks(void)
     xTaskCreate(veml_7700_task, "veml_7700_task", 2048, NULL, 2, &veml_7700_task_handle);
   if (!ddc_task_handle)
     xTaskCreate(ddc_task, "ddc_task", 2048, NULL, 3, &ddc_task_handle);
+  if (!ir_led_task_handle)
+    xTaskCreate(ir_led_task, "ir_led_task", 2048, NULL, 3, &ir_led_task_handle);
 }
 
 static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask)
@@ -232,6 +252,9 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
   case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
     ret = zb_attribute_handler((esp_zb_zcl_set_attr_value_message_t *)message);
     break;
+  case ESP_ZB_CORE_CMD_CUSTOM_CLUSTER_REQ_CB_ID:
+    ret = zb_custom_cmd_handler((esp_zb_zcl_custom_cluster_command_message_t *)message);
+    break;
   case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
     break;
   default:
@@ -272,8 +295,36 @@ static esp_err_t zb_attribute_handler(const esp_zb_zcl_set_attr_value_message_t 
       default:
         break;
       }
-      xMessageBufferSend(ddc_input_message_buffer, &command, sizeof(command), 100 / portTICK_PERIOD_MS);
+      xMessageBufferSend(ddc_message_buffer, &command, sizeof(command), 100 / portTICK_PERIOD_MS);
     }
   }
   return ret;
+}
+
+static esp_err_t zb_custom_cmd_handler(const esp_zb_zcl_custom_cluster_command_message_t *message)
+{
+  ESP_RETURN_ON_FALSE(message, ESP_FAIL, TAG, "Empty message");
+  ESP_RETURN_ON_FALSE(message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS, ESP_ERR_INVALID_ARG, TAG, "Received message: error status(%d)",
+                      message->info.status);
+  const uint8_t *payload = (const uint8_t *)message->data.value;
+
+  switch (message->info.command.id)
+  {
+  case ZIGBEE_IR_COMMAND_ATTR_ID:
+    if (message->data.size != 4)
+      return ESP_ERR_INVALID_SIZE;
+
+    ir_nec_scan_code_t nec_code = {
+        .address = payload[0] | (payload[1] << 8),
+        .command = payload[2] | (payload[3] << 8),
+    };
+    xMessageBufferSend(ir_led_message_buffer, &nec_code, sizeof(nec_code), 100 / portTICK_PERIOD_MS);
+    break;
+  default:
+    ESP_LOGI(TAG, "Receive custom command: %d from address 0x%04hx", message->info.command.id, message->info.src_address.u.short_addr);
+    ESP_LOGI(TAG, "Payload size: %d", message->data.size);
+    ESP_LOG_BUFFER_CHAR(TAG, ((uint8_t *)message->data.value) + 1, message->data.size - 1);
+  }
+
+  return ESP_OK;
 }
