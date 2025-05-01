@@ -2,6 +2,7 @@
 #include <veml7700.h>
 #include <esp_log.h>
 #include <math.h>
+#include <esp_pm.h>
 
 #include "veml_7700.h"
 #include "zigbee.h"
@@ -54,13 +55,17 @@ void veml_7700_task(void *param)
 
   const float resolution = veml7700_resolution_map[dev_config.integration_time][dev_config.gain];
 
+  esp_pm_lock_handle_t pm_lock;
+  ESP_ERROR_CHECK(esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "veml7700", &pm_lock));
   while (true)
   {
     uint16_t counts;
+    ESP_ERROR_CHECK(esp_pm_lock_acquire(pm_lock));
     ESP_ERROR_CHECK(veml7700_enable(dev_handle));
     vTaskDelay(3 / portTICK_PERIOD_MS);
     ESP_ERROR_CHECK(veml7700_get_ambient_light_counts(dev_handle, &counts));
     ESP_ERROR_CHECK(veml7700_disable(dev_handle));
+    ESP_ERROR_CHECK(esp_pm_lock_release(pm_lock));
 
     float lux = (float)counts * resolution;
     /* apply correction formula for illumination > 1000 lux */
