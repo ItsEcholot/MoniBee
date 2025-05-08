@@ -49,10 +49,14 @@ The Tenstar Robot ESP32-C6 Supermini ([AliExpress link](https://www.aliexpress.c
 | 9 (Boot button) | Reset / Re-pair ZigBee |
 | 15 (Built in LED) | on = awake, off = light sleep |
 
+## 3D Printed Case
+To house all the electronics I have designed a simple 3d printable case. The files for which can be found in the project root. See pictures & screenshots below for some impressions.
+
 ## Screenshots & Pictures
-<img src="https://github.com/user-attachments/assets/991a22b6-4321-4d62-a1a1-15a0645e097a" alt="zigbee2-mqtt screenshot" width=50%/>
-<img src="https://github.com/user-attachments/assets/66004747-6c1f-4f4c-ae06-81eb97873e0f" alt="homeassistant screenshot" width=50%/>
 <img src="https://github.com/user-attachments/assets/b93a72c8-e839-457c-bfa2-e8bb0220f8ed" alt="soldered monibee without case" width=50%/>
 <img src="https://github.com/user-attachments/assets/0cd01b02-fcbb-479f-a252-865d49ecfebc" alt="monibee mounted to back of monitor with 3d printed case" width=50%/>
+<img src="https://github.com/user-attachments/assets/e44d6f57-6ca0-4c1a-9733-e1dbdb13386c" alt="monibee 3d printed mounting tray" width=75%/>
+<img src="https://github.com/user-attachments/assets/991a22b6-4321-4d62-a1a1-15a0645e097a" alt="zigbee2-mqtt screenshot" width=75%/>
+<img src="https://github.com/user-attachments/assets/66004747-6c1f-4f4c-ae06-81eb97873e0f" alt="homeassistant screenshot" width=75%/>
 
 
